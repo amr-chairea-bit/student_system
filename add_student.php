@@ -16,56 +16,84 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_name = trim($_POST['name']);
     $student_email = trim($_POST['email']);
     $student_phone = trim($_POST['phone']);
+    $student_phone_digits = preg_replace('/\D/', '', $student_phone);
     $student_address = trim($_POST['address']);
 
     if (empty($student_name) || empty($student_email) || empty($student_phone) || empty($student_address)) {
         $error_message = "الرجاء تعبئة جميع الحقول.";
     } 
-    elseif (!filter_var($student_email, FILTER_VALIDATE_EMAIL)) {
+    elseif (strpos($student_email, '@') === false || strpos($student_email, '.') === false) {
         $error_message = "صيغة البريد الإلكتروني غير صحيحة.";
+    } 
+    elseif (strlen($student_phone_digits) != 10 && strlen($student_phone_digits) != 12) {
+        $error_message = "رقم الهاتف يجب أن يتكون من 10 أو 12 رقماً.";
     } 
     else {
 
-        $profile_picture_path = NULL;
-        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
+        $check_email_query = "SELECT id FROM students WHERE email = :email";
+        $check_email_statement = $connection->prepare($check_email_query);
+        $check_email_statement->bindParam(':email', $student_email);
+        $check_email_statement->execute();
 
-            $upload_folder = "uploads/";
-            $file_name = time() . "_" . basename($_FILES['profile_picture']['name']);
-            $target_file = $upload_folder . $file_name;
-            $image_file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+        if ($check_email_statement->fetch()) {
+            $error_message = "البريد الإلكتروني مستخدم بالفعل لطالب آخر.";
+        }
 
-            $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
+        if (empty($error_message)) {
 
-            if (!in_array($image_file_type, $allowed_types)) {
-                $error_message = "يُسمح فقط برفع صور بصيغة JPG, JPEG, PNG, GIF.";
-            } 
-            elseif ($_FILES['profile_picture']['size'] > 2000000) {
-                $error_message = "حجم الصورة كبير جداً (الحد الأقصى 2 ميجابايت).";
-            } 
-            elseif (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
-                $profile_picture_path = $target_file;
-            } 
-            else {
-                $error_message = "حدث خطأ أثناء رفع الصورة.";
+            $check_phone_query = "SELECT id FROM students WHERE phone = :phone";
+            $check_phone_statement = $connection->prepare($check_phone_query);
+            $check_phone_statement->bindParam(':phone', $student_phone_digits);
+            $check_phone_statement->execute();
+
+            if ($check_phone_statement->fetch()) {
+                $error_message = "رقم الهاتف مستخدم بالفعل لطالب آخر.";
             }
         }
 
         if (empty($error_message)) {
 
-            $insert_query = "INSERT INTO students (name, email, phone, address, profile_picture) 
-                             VALUES (:name, :email, :phone, :address, :profile_picture)";
-            $insert_statement = $connection->prepare($insert_query);
-            $insert_statement->bindParam(':name', $student_name);
-            $insert_statement->bindParam(':email', $student_email);
-            $insert_statement->bindParam(':phone', $student_phone);
-            $insert_statement->bindParam(':address', $student_address);
-            $insert_statement->bindParam(':profile_picture', $profile_picture_path);
+            $profile_picture_path = NULL;
+            if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
 
-            if ($insert_statement->execute()) {
-                $success_message = "تم إضافة الطالب بنجاح!";
-            } 
-            else {
-                $error_message = "حدث خطأ أثناء إضافة الطالب.";
+                $upload_folder = "uploads/";
+                $file_name = time() . "_" . basename($_FILES['profile_picture']['name']);
+                $target_file = $upload_folder . $file_name;
+                $image_file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+
+                $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
+
+                if (!in_array($image_file_type, $allowed_types)) {
+                    $error_message = "يُسمح فقط برفع صور بصيغة JPG, JPEG, PNG, GIF.";
+                } 
+                elseif ($_FILES['profile_picture']['size'] > 2000000) {
+                    $error_message = "حجم الصورة كبير جداً (الحد الأقصى 2 ميجابايت).";
+                } 
+                elseif (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
+                    $profile_picture_path = $target_file;
+                } 
+                else {
+                    $error_message = "حدث خطأ أثناء رفع الصورة.";
+                }
+            }
+
+            if (empty($error_message)) {
+
+                $insert_query = "INSERT INTO students (name, email, phone, address, profile_picture) 
+                                 VALUES (:name, :email, :phone, :address, :profile_picture)";
+                $insert_statement = $connection->prepare($insert_query);
+                $insert_statement->bindParam(':name', $student_name);
+                $insert_statement->bindParam(':email', $student_email);
+                $insert_statement->bindParam(':phone', $student_phone_digits);
+                $insert_statement->bindParam(':address', $student_address);
+                $insert_statement->bindParam(':profile_picture', $profile_picture_path);
+
+                if ($insert_statement->execute()) {
+                    $success_message = "تم إضافة الطالب بنجاح!";
+                } 
+                else {
+                    $error_message = "حدث خطأ أثناء إضافة الطالب.";
+                }
             }
         }
     }

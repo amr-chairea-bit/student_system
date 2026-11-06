@@ -1,10 +1,11 @@
 <?php
 
 
-$server_name = "db.fr-roub1.bengt.wasmernet.com";            
+// $server_name = "db.fr-roub1.bengt.wasmernet.com";
+$server_name = "localhost";          
 $database_name = "student_registration_system"; 
-$database_username = "user_dce5446b";            
-$database_password = "pw_V8jZl8FHOjHDBIl79ktLzVZcu0MuP71I";            
+$database_username = "root"; //$database_username = "root";            
+$database_password = "";// $database_password = "";            
 try {
     $connection = new PDO("mysql:host=$server_name;dbname=$database_name", $database_username, $database_password);
 

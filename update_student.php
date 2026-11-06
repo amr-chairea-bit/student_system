@@ -34,65 +34,95 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_name = trim($_POST['name']);
     $student_email = trim($_POST['email']);
     $student_phone = trim($_POST['phone']);
+    $student_phone_digits = preg_replace('/\D/', '', $student_phone);
     $student_address = trim($_POST['address']);
 
     if (empty($student_name) || empty($student_email) || empty($student_phone) || empty($student_address)) {
         $error_message = "الرجاء تعبئة جميع الحقول.";
     } 
-    elseif (!filter_var($student_email, FILTER_VALIDATE_EMAIL)) {
+    elseif (strpos($student_email, '@') === false || strpos($student_email, '.') === false) {
         $error_message = "صيغة البريد الإلكتروني غير صحيحة.";
+    } 
+    elseif (strlen($student_phone_digits) != 10 && strlen($student_phone_digits) != 12) {
+        $error_message = "رقم الهاتف يجب أن يتكون من 10 أو 12 رقماً.";
     } 
     else {
 
-        $profile_picture_path = $student['profile_picture'];
+        $check_email_query = "SELECT id FROM students WHERE email = :email AND id != :id";
+        $check_email_statement = $connection->prepare($check_email_query);
+        $check_email_statement->bindParam(':email', $student_email);
+        $check_email_statement->bindParam(':id', $student_id, PDO::PARAM_INT);
+        $check_email_statement->execute();
 
-        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
+        if ($check_email_statement->fetch()) {
+            $error_message = "البريد الإلكتروني مستخدم بالفعل لطالب آخر.";
+        }
 
-            $upload_folder = "uploads/";
-            $file_name = time() . "_" . basename($_FILES['profile_picture']['name']);
-            $target_file = $upload_folder . $file_name;
-            $image_file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+        if (empty($error_message)) {
 
-            $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
+            $check_phone_query = "SELECT id FROM students WHERE phone = :phone AND id != :id";
+            $check_phone_statement = $connection->prepare($check_phone_query);
+            $check_phone_statement->bindParam(':phone', $student_phone_digits);
+            $check_phone_statement->bindParam(':id', $student_id, PDO::PARAM_INT);
+            $check_phone_statement->execute();
 
-        if (!in_array($image_file_type, $allowed_types)) {
-                $error_message = "يُسمح فقط برفع صور بصيغة JPG, JPEG, PNG, GIF.";
-            } 
-            elseif ($_FILES['profile_picture']['size'] > 2000000) {
-                $error_message = "حجم الصورة كبير جداً (الحد الأقصى 2 ميجابايت).";
-            } 
-            elseif (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
-                if (!empty($student['profile_picture']) && file_exists($student['profile_picture'])) {
-                    unlink($student['profile_picture']);
-                }
-                $profile_picture_path = $target_file;
-            } 
-            else {
-                $error_message = "حدث خطأ أثناء رفع الصورة.";
+            if ($check_phone_statement->fetch()) {
+                $error_message = "رقم الهاتف مستخدم بالفعل لطالب آخر.";
             }
         }
 
         if (empty($error_message)) {
 
-            $update_query = "UPDATE students SET name = :name, email = :email, phone = :phone, address = :address, profile_picture = :profile_picture WHERE id = :id";
-            $update_statement = $connection->prepare($update_query);
-            $update_statement->bindParam(':name', $student_name);
-            $update_statement->bindParam(':email', $student_email);
-            $update_statement->bindParam(':phone', $student_phone);
-            $update_statement->bindParam(':address', $student_address);
-            $update_statement->bindParam(':profile_picture', $profile_picture_path);
-            $update_statement->bindParam(':id', $student_id);
+            $profile_picture_path = $student['profile_picture'];
 
-            if ($update_statement->execute()) {
-                $success_message = "تم تحديث بيانات الطالب بنجاح!";
-                $student['name'] = $student_name;
-                $student['email'] = $student_email;
-                $student['phone'] = $student_phone;
-                $student['address'] = $student_address;
-                $student['profile_picture'] = $profile_picture_path;
-            } 
-            else {
-                $error_message = "حدث خطأ أثناء تحديث البيانات.";
+            if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
+
+                $upload_folder = "uploads/";
+                $file_name = time() . "_" . basename($_FILES['profile_picture']['name']);
+                $target_file = $upload_folder . $file_name;
+                $image_file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+
+                $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
+
+                if (!in_array($image_file_type, $allowed_types)) {
+                    $error_message = "يُسمح فقط برفع صور بصيغة JPG, JPEG, PNG, GIF.";
+                } 
+                elseif ($_FILES['profile_picture']['size'] > 2000000) {
+                    $error_message = "حجم الصورة كبير جداً (الحد الأقصى 2 ميجابايت).";
+                } 
+                elseif (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
+                    if (!empty($student['profile_picture']) && file_exists($student['profile_picture'])) {
+                        unlink($student['profile_picture']);
+                    }
+                    $profile_picture_path = $target_file;
+                } 
+                else {
+                    $error_message = "حدث خطأ أثناء رفع الصورة.";
+                }
+            }
+
+            if (empty($error_message)) {
+
+                $update_query = "UPDATE students SET name = :name, email = :email, phone = :phone, address = :address, profile_picture = :profile_picture WHERE id = :id";
+                $update_statement = $connection->prepare($update_query);
+                $update_statement->bindParam(':name', $student_name);
+                $update_statement->bindParam(':email', $student_email);
+                $update_statement->bindParam(':phone', $student_phone_digits);
+                $update_statement->bindParam(':address', $student_address);
+                $update_statement->bindParam(':profile_picture', $profile_picture_path);
+                $update_statement->bindParam(':id', $student_id);
+
+                if ($update_statement->execute()) {
+                    $success_message = "تم تحديث بيانات الطالب بنجاح!";
+                    $student['name'] = $student_name;
+                    $student['email'] = $student_email;
+                    $student['phone'] = $student_phone_digits;
+                    $student['address'] = $student_address;
+                    $student['profile_picture'] = $profile_picture_path;
+                } 
+                else {
+                    $error_message = "حدث خطأ أثناء تحديث البيانات.";
+                }
             }
         }
     }
